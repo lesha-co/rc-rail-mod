@@ -1,12 +1,12 @@
 {
   "required": true,
   "minVersion": "0.8",
-  "package": "net.fabricmc.example.mixin",
+  "package": "co.lesha.minecraftmods.rc_rail_mod.mixin",
   "compatibilityLevel": "JAVA_17",
   "mixins": [
   ],
   "client": [
-    "ExampleMixin"
+    "PlayerEnterVehicleMixin"
   ],
   "injectors": {
     "defaultRequire": 1
