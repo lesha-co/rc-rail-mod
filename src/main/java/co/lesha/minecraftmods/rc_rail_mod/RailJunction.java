@@ -6,16 +6,16 @@ import net.minecraft.util.math.Direction;
 
 import java.util.*;
 
-public class RailJunction {
-  public RailWalker rw;
-  public Direction fixedPart;
-
-  public RailJunction(RailWalker rw, Direction fixedPart) {
-    this.rw = rw;
-    this.fixedPart = fixedPart;
+public record RailJunction(RailWalker rw, Direction fixedPart) {
+  @Override
+  public String toString() {
+    return "RailJunction{" +
+      "rw=" + rw +
+      ", fixedPart=" + fixedPart +
+      '}';
   }
 
-  public Optional<RailShape> constructShape(Direction d1, Direction d2) {
+  private Optional<RailShape> constructShape(Direction d1, Direction d2) {
     if (d1 == d2 || d1 == Direction.UP || d1 == Direction.DOWN || d2 == Direction.UP || d2 == Direction.DOWN) {
       return Optional.empty();
     }
@@ -90,19 +90,20 @@ public class RailJunction {
 
   public void toggle() {
     // TODO: change block state of reciprocal block
-    RailRemoteControlMod.LOGGER.info("switching at "+ this.rw.pos().toShortString()+ " fixed side " + this.fixedPart.toString());
+    RailRemoteControlMod.LOGGER.info("switching " + this);
     RailShape newShape = nextShape();
     rw.world().setBlockState(rw.pos(), rw.getState().with(Properties.RAIL_SHAPE, newShape));
   }
-  public RailShape nextShape() {
-    RailShape rs= this.rw.getShape();
+
+  private RailShape nextShape() {
+    RailShape rs = this.rw.getShape();
     var possible = getPossibleShapes();
     for (int i = 0; i < possible.size(); i++) {
-      if(possible.get(i) == rs){
-        if(i+1 >= possible.size()) {
+      if (possible.get(i) == rs) {
+        if (i + 1 >= possible.size()) {
           return possible.get(0);
-        } else{
-          return possible.get(i+1);
+        } else {
+          return possible.get(i + 1);
         }
       }
     }

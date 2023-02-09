@@ -164,7 +164,9 @@ public record RailWalker(World world, BlockPos pos) {
    *  - connected to this rail
    *  - connected to one or zero other rails
    *  and
-   *  - does not ascend (except away from junction)
+   *  - does not ascend except
+   *    - away from junction
+   *    - towards junction from one block below
    *  - is not "straight-only" block (except if facing junction)
    *
    * @return
@@ -179,8 +181,12 @@ public record RailWalker(World world, BlockPos pos) {
         RailRemoteControlMod.LOGGER.info("  Checking " + d.toString() + " of "+ this);
         var nextRailInDirection = findNextRailInDirection(d).orElseThrow();
         var nextRailAscension = nextRailInDirection.ascendingTowards();
-        if(nextRailAscension.isPresent() && nextRailAscension.get() != d) {
-          return false;
+        if(nextRailAscension.isPresent()) {
+          if(nextRailInDirection.pos.getY() == this.pos.getY()) {
+            if(nextRailAscension.get() != d ) return false;
+          } else {
+            if(nextRailAscension.get() != d.getOpposite() ) return false;
+          }
         }
         if(!nextRailInDirection.canMakeCurves() && !nextRailInDirection.hasFacing(d.getOpposite())) {
           return false;
