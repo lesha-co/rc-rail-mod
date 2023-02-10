@@ -5,8 +5,7 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.item.v1.FabricItemSettings;
 import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
 import net.minecraft.block.BlockState;
-import net.minecraft.block.RailBlock;
-import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.block.enums.RailShape;
 import net.minecraft.entity.vehicle.MinecartEntity;
 import net.minecraft.item.ItemGroups;
 import net.minecraft.item.Items;
@@ -15,10 +14,11 @@ import net.minecraft.registry.Registry;
 import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import net.minecraft.util.math.Direction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.Optional;
 
 public class RailRemoteControlMod implements ModInitializer {
   // This logger is used to write text to the console and the log file.
@@ -48,75 +48,95 @@ public class RailRemoteControlMod implements ModInitializer {
     );
   }
 
-  /**
-   * Returns Minecart entity for given player if they're in one
-   * @param player
-   * @return
-   */
-  public static @Nullable MinecartEntity GetMinecart(@NotNull PlayerEntity player) {
-    if (player.getVehicle() instanceof MinecartEntity mc) {
-      return mc;
-    }
-    return null;
-  }
-  public static @Nullable BlockPos GetRailUnderMinecartPos(@NotNull MinecartEntity mce) {
+  public static Optional<BlockPos> GetRailUnderMinecartPos(MinecartEntity mce) {
     BlockPos bp = mce.getBlockPos();
     if (isRailBlock(mce.world.getBlockState(bp))) {
-      return bp;
+      return Optional.of(bp);
     }
     BlockPos bp2 = bp.down();
 
     if (isRailBlock(mce.world.getBlockState(bp2))) {
-      return bp2;
+      return Optional.of(bp2);
     }
-    return null;
-  }
-  public static @Nullable BlockPos GetRailUnderMinecartPos(@NotNull PlayerEntity player) {
-    var mce = GetMinecart(player);
-    if (mce != null) {
-      return GetRailUnderMinecartPos(mce);
-    }
-    return null;
+    return Optional.empty();
   }
 
-  /**
-   * Returns block state of rail piece under minecart
-   *
-   * @param mce minecart instance
-   * @return block state
-   */
-  public static @Nullable BlockState GetRailUnderMinecart(MinecartEntity mce) {
-    var pos = GetRailUnderMinecartPos(mce);
-    if (pos != null) {
-
-      return mce.world.getBlockState(pos);
-    }
-    return null;
-  }
-
-  public static @Nullable BlockState GetRailUnderMinecart(@NotNull PlayerEntity player) {
-    var mce = GetMinecart(player);
-    if (mce != null) {
-      return GetRailUnderMinecart(mce);
-    }
-    return null;
-  }
-
-  public static boolean isRailBlock(@NotNull BlockState bs) {
+  public static boolean isRailBlock( BlockState bs) {
     return bs.isIn(BlockTags.RAILS);
   }
 
 
-  @NotNull
+  public static Optional<RailShape> constructShape(Direction d1, Direction d2) {
+    if (d1 == d2 || d1 == Direction.UP || d1 == Direction.DOWN || d2 == Direction.UP || d2 == Direction.DOWN) {
+      return Optional.empty();
+    }
+    switch (d1) {
+      case NORTH -> {
+        switch (d2) {
+          case SOUTH -> {
+            return Optional.of(RailShape.NORTH_SOUTH);
+          }
+          case WEST -> {
+            return Optional.of(RailShape.NORTH_WEST);
+          }
+          case EAST -> {
+            return Optional.of(RailShape.NORTH_EAST);
+          }
+        }
+      }
+      case SOUTH -> {
+        switch (d2) {
+          case NORTH -> {
+            return Optional.of(RailShape.NORTH_SOUTH);
+          }
+          case WEST -> {
+            return Optional.of(RailShape.SOUTH_WEST);
+          }
+          case EAST -> {
+            return Optional.of(RailShape.SOUTH_EAST);
+          }
+        }
+      }
+      case WEST -> {
+        switch (d2) {
+          case SOUTH -> {
+            return Optional.of(RailShape.SOUTH_WEST);
+          }
+          case NORTH -> {
+            return Optional.of(RailShape.NORTH_WEST);
+          }
+          case EAST -> {
+            return Optional.of(RailShape.EAST_WEST);
+          }
+        }
+      }
+      case EAST -> {
+        switch (d2) {
+          case SOUTH -> {
+            return Optional.of(RailShape.SOUTH_EAST);
+          }
+          case WEST -> {
+            return Optional.of(RailShape.EAST_WEST);
+          }
+          case NORTH -> {
+            return Optional.of(RailShape.NORTH_EAST);
+          }
+        }
+      }
+    }
+    return Optional.empty();
+  }
+
+
   private static ServerTickEvents.EndWorldTick getEndWorldTick() {
     return world -> {
-      for (var player : world.getPlayers()) {
-        var blockPos = GetRailUnderMinecartPos(player);
-        if (blockPos == null) continue;
-        var shape = new RailWalker(world, blockPos).getShape();
-        if (shape == null) continue;
+//      for (var player : world.getPlayers()) {
+//        var blockPos = GetRailUnderMinecartPos(player);
+//        if (blockPos.isEmpty()) continue;
+//        var shape = new RailWalker(world, blockPos.get()).getShape();
+//        if (shape == null) continue;
 //        LOGGER.info(shape.asString());
-      }
+//      }
 
     };
   }

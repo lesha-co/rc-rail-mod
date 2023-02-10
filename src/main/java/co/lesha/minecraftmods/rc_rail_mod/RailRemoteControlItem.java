@@ -9,13 +9,9 @@ import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
 import net.minecraft.util.Hand;
 import net.minecraft.util.TypedActionResult;
-import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 
 import java.util.List;
-
-
-import static co.lesha.minecraftmods.rc_rail_mod.RailRemoteControlMod.GetRailUnderMinecartPos;
 
 public class RailRemoteControlItem extends Item {
 
@@ -25,16 +21,16 @@ public class RailRemoteControlItem extends Item {
     @Override
     public TypedActionResult<ItemStack> use(World world, PlayerEntity playerEntity, Hand hand) {
         if(playerEntity.getVehicle() instanceof MinecartEntity mc) {
-//            RailRemoteControlMod.LOGGER.info(mc.getBlockStateAtPos().toString());
-//
             playerEntity.playSound(SoundEvents.BLOCK_LEVER_CLICK, 1.0F, 1.0F);
 
-            BlockPos bp = GetRailUnderMinecartPos(mc);
-            if(bp != null) {
-                new RailWalker(world, bp)
-                  .getNextJunction(playerEntity.getHorizontalFacing(), 80)
-                  .ifPresent(RailJunction::toggle);
-            }
+            var bp = RailRemoteControlMod.GetRailUnderMinecartPos(mc);
+//            if(bp.isPresent()) {
+//                new RailWalker(world, bp.get())
+//                  .getNextJunction(playerEntity.getHorizontalFacing(), 80)
+//                  .ifPresent(RailJunction::toggle);
+            bp.flatMap(blockPos -> new RailWalker(world, blockPos)
+              .getNextJunction(playerEntity.getHorizontalFacing(), 80))
+              .ifPresent(RailJunction::toggle);
 
         } else {
             playerEntity.playSound(SoundEvents.BLOCK_GLASS_BREAK, 1.0F, 1.0F);

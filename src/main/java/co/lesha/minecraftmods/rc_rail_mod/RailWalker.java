@@ -6,6 +6,7 @@ import net.minecraft.block.BlockState;
 import net.minecraft.block.RailBlock;
 import net.minecraft.block.enums.RailShape;
 import net.minecraft.registry.tag.BlockTags;
+import net.minecraft.state.property.Properties;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.world.World;
@@ -16,7 +17,7 @@ import java.util.stream.Collectors;
 public record RailWalker(World world, BlockPos pos) {
   @Override
   public String toString() {
-    return "Walker@["+pos.getX()+","+pos.getZ()+"] " + this.getShape();
+    return "Walker@[" + pos.getX() + "," + pos.getZ() + "] " + this.getShape();
   }
 
   public static boolean isRail(BlockState state) {
@@ -102,7 +103,7 @@ public record RailWalker(World world, BlockPos pos) {
     return Direction.EAST;
   }
 
-  private Optional<RailWalker> findNextRailInDirection(Direction direction) {
+  public Optional<RailWalker> findNextRailInDirection(Direction direction) {
     assert directionIsHorizontal(direction);
     var nextBlockPos = this.pos.offset(direction);
     var ascendingTowards = this.ascendingTowards();
@@ -110,9 +111,9 @@ public record RailWalker(World world, BlockPos pos) {
     if (ascendingTowards.isPresent() && ascendingTowards.get() == direction) {
       // we are standing on ascending rail,
       // looking from its "upper" side, next block MUST be higher
-      nextBlockPos = nextBlockPos.up();
-      return isRailAtPos(nextBlockPos)
-        ? Optional.of(createFromPos(nextBlockPos))
+      var nextBlockPosUp = nextBlockPos.up();
+      return isRailAtPos(nextBlockPosUp)
+        ? Optional.of(createFromPos(nextBlockPosUp))
         : Optional.empty();
     }
 
@@ -122,9 +123,13 @@ public record RailWalker(World world, BlockPos pos) {
     }
 
     // checking lower level
-    nextBlockPos = nextBlockPos.down();
-    if (isRailAtPos(nextBlockPos)) {
-      return Optional.of(createFromPos(nextBlockPos));
+    var nextBlockPosDown = nextBlockPos.down();
+    if (isRailAtPos(nextBlockPosDown)) {
+      var otherAscension = createFromPos(nextBlockPosDown).ascendingTowards();
+      if(otherAscension.isPresent() && otherAscension.get() == direction.getOpposite()) {
+        return Optional.of(createFromPos(nextBlockPosDown));
+      }
+
     }
     return Optional.empty();
 
@@ -138,36 +143,42 @@ public record RailWalker(World world, BlockPos pos) {
     return directions;
   }
 
+  private Optional<RailWalker> getConnectionAt(Direction direction) {
+    RailRemoteControlMod.LOGGER.info("checking " + this + " on " + direction.toString());
+    var maybeOtherRail = findNextRailInDirection(direction);
+    if (maybeOtherRail.isEmpty()) {
+      RailRemoteControlMod.LOGGER.info("no rail");
+      return Optional.empty();
+    }
+
+    var otherRail = maybeOtherRail.get();
+    if (!otherRail.getFacings().contains(direction.getOpposite())) {
+      RailRemoteControlMod.LOGGER.info("rail exists, but not connected to this");
+      return Optional.empty();
+    }
+    RailRemoteControlMod.LOGGER.info("rail[" + this + "] is connected to " + otherRail);
+    return Optional.of(otherRail);
+
+  }
+
   public Set<RailWalker> getConnections() {
     Set<RailWalker> rwSet = new HashSet<>();
-    RailRemoteControlMod.LOGGER.info("    checking connectivity at " + this);
+    RailRemoteControlMod.LOGGER.info("checking connectivity at " + this);
     for (var facing : getFacings()) {
-      RailRemoteControlMod.LOGGER.info("      checking " + facing.toString());
-      var otherRail = findNextRailInDirection(facing);
-      if (otherRail.isEmpty()) {
-        RailRemoteControlMod.LOGGER.info("        no rail");
-
-      } else if (!otherRail.get().getFacings().contains(facing.getOpposite())) {
-        RailRemoteControlMod.LOGGER.info("        rail exists, no connection on " + facing.getOpposite() + " ( " + otherRail.get().getShape() + " )");
-      } else {
-        RailRemoteControlMod.LOGGER.info("        rail["+this+"] is connected to " + otherRail.get());
-        rwSet.add(otherRail.get());
-      }
+      getConnectionAt(facing).ifPresent(rwSet::add);
     }
-    RailRemoteControlMod.LOGGER.info("    connected to " + rwSet.size() + " other rail(s)");
-
     return rwSet;
   }
 
   /**
    * Suitable direction for this rail has other rail that's either:
-   *  - connected to this rail
-   *  - connected to one or zero other rails
-   *  and
-   *  - does not ascend except
-   *    - away from junction
-   *    - towards junction from one block below
-   *  - is not "straight-only" block (except if facing junction)
+   * - connected to this rail
+   * - connected to one or zero other rails
+   * and
+   * - does not ascend except
+   * - away from junction
+   * - towards junction from one block below
+   * - is not "straight-only" block (except if facing junction)
    *
    * @return
    */
@@ -178,29 +189,29 @@ public record RailWalker(World world, BlockPos pos) {
     var suitable = allDirections.stream()
       .filter(d -> {
 
-        RailRemoteControlMod.LOGGER.info("  Checking " + d.toString() + " of "+ this);
+        RailRemoteControlMod.LOGGER.info("  Checking " + d.toString() + " of " + this);
         var nextRailInDirection = findNextRailInDirection(d).orElseThrow();
         var nextRailAscension = nextRailInDirection.ascendingTowards();
-        if(nextRailAscension.isPresent()) {
-          if(nextRailInDirection.pos.getY() == this.pos.getY()) {
-            if(nextRailAscension.get() != d ) return false;
+        if (nextRailAscension.isPresent()) {
+          if (nextRailInDirection.pos.getY() == this.pos.getY()) {
+            if (nextRailAscension.get() != d) return false;
           } else {
-            if(nextRailAscension.get() != d.getOpposite() ) return false;
+            if (nextRailAscension.get() != d.getOpposite()) return false;
           }
         }
-        if(!nextRailInDirection.canMakeCurves() && !nextRailInDirection.hasFacing(d.getOpposite())) {
+        if (!nextRailInDirection.canMakeCurves() && !nextRailInDirection.hasFacing(d.getOpposite())) {
           return false;
         }
-        if(nextRailInDirection.hasFacing(d.getOpposite())) {
+        if (nextRailInDirection.hasFacing(d.getOpposite())) {
           return true;
         }
-        if(nextRailInDirection.getConnections().size() < 2) {
+        if (nextRailInDirection.getConnections().size() < 2) {
           return true;
         }
         return false;
       })
       .collect(Collectors.toSet());
-    RailRemoteControlMod.LOGGER.info("Found "+suitable.size()+" suitable directions for " + this);
+    RailRemoteControlMod.LOGGER.info("Found " + suitable.size() + " suitable directions for " + this);
     return suitable;
   }
 
@@ -237,14 +248,15 @@ public record RailWalker(World world, BlockPos pos) {
     if (nBlocksToScanFor <= 0) {
       return Optional.empty();
     }
+
     var next = this.findNextRailInDirection(dir);
-    if (next.isEmpty()) {
-      return Optional.empty();
+    if (next.isEmpty()) { // если next пустой
+      return Optional.empty(); //вернуть пустое значение
     }
-    if (next.get().isJunctionCondition()) {
-      RailRemoteControlMod.LOGGER.info(next.get().toString());
-      return Optional.of(new RailJunction(next.get(), dir.getOpposite()));
+    if (next.get().isJunctionCondition()) { // get() тут вернет инстанс класса RailWalker
+      return Optional.of(new RailJunction(next.get(), dir.getOpposite())); // Optional.of() создает optional со значением
     }
+
     // Cart is traveling in direction {dir} so it enters block from its opposite facing
     Direction d = next.get().findExit(dir.getOpposite());
     return next.get().getNextJunction(d, nBlocksToScanFor - 1);
@@ -257,4 +269,38 @@ public record RailWalker(World world, BlockPos pos) {
       && !this.getShape().isAscending();
   }
 
+  /**
+   * Method to change this rail's shape in order to change one of its sides
+   * (north-south -> north-east) in response to nearby junction switch (in this case, junction to the east requested )
+   * - if both sides are connected, the request is ignored
+   * - if rail can't make curves, the request is ignored
+   * - if both sides are disconnected, the rail is replaced by straight rail going towards the attractor
+   * - if one side is disconnected, the rail is replaced by one that's going from connected side to the junction
+   *
+   * @param attractionFacing the requested direction
+   */
+  public void attract(Direction attractionFacing) {
+    if (!this.canMakeCurves() || this.ascendingTowards().isPresent()) {
+      return;
+    }
+
+    var disconnectedFacings = getFacings().stream().filter(face -> getConnectionAt(face).isEmpty()).toList();
+    var connectedFacings = getFacings();
+    connectedFacings.removeAll(disconnectedFacings);
+    var connectedList = connectedFacings.stream().toList();
+    Optional<Direction> otherFacing = switch (disconnectedFacings.size()) {
+      default -> Optional.empty();
+      case 1 -> Optional.of(connectedList.get(0));
+      case 2 -> Optional.of(attractionFacing.getOpposite());
+    };
+    if (otherFacing.isPresent()) {
+      var shape = RailRemoteControlMod.constructShape(attractionFacing, otherFacing.get());
+      shape.ifPresent(this::replaceShape);
+    }
+
+  }
+
+  public void replaceShape(RailShape shape) {
+    this.world.setBlockState(this.pos, getState().with(Properties.RAIL_SHAPE, shape));
+  }
 }
